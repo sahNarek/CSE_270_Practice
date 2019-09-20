@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1568626565397.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "6E4E76BE",
+    "lastKnownWriteTime" : 1569003065,
+    "last_content_update" : 1569003065594,
+    "path" : "~/Desktop/SportsAnalytics/bradley_terry.R",
+    "project_path" : "bradley_terry.R",
+    "properties" : {
+        "cursorPosition" : "94,25",
+        "scrollLine" : "84",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
