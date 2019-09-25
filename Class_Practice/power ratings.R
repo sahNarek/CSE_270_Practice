@@ -4,6 +4,7 @@ library(zoo)
 library(reshape)
 library(reshape2)
 data(f_data_sm)
+
 england <- f_data_sm %>%
   filter(COUNTRY == "England") %>%
   arrange(DATE) %>%

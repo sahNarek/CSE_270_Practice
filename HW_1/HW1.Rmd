@@ -1,12 +1,11 @@
 ---
 title: "Predicting with models and distributions"
 author: "Narek Sahakyan"
-date: "September 24, 2019"
+date: "September 25, 2019"
 output: pdf_document
 ---
 
-Overall 50pts. Submit both markdown and pdf files
-
+You were right Mr. Madoyan, I started on wednesday.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message=F, warning=F)
@@ -17,7 +16,7 @@ library(BradleyTerry2)
 library(VGAM)
 ```
 
-I am Narek Sahakyan, and I am assigned to analyze the Dutch league(Eredivisie). Before starting the analysis I know that, Eredivisie is considered one of the most attacking leageues in the world, so let's see if this statement is expressed in their statistics.
+I am assigned to analyze the Dutch league(Eredivisie). Before starting the analysis I know that Eredivisie is considered one of the most attacking leageues in the world, so let's see if this statement is expressed by their statistics.
 
 
 ```{r}
@@ -28,7 +27,7 @@ data(f_data_sm)
 1. Calculate average number of goals for home and away teams per SEASON for that league, use dplyr. (4p)
 
 
-```{r}
+```{r prob1.1}
 eredivisie <- f_data_sm %>% 
   filter(LEAGUE == "Eredivisie")
 
