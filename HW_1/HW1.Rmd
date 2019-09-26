@@ -14,6 +14,8 @@ library(dplyr)
 library(ggplot2)
 library(BradleyTerry2)
 library(VGAM)
+library(reshape2)
+library(zoo)
 ```
 
 I am assigned to analyze the Dutch league(Eredivisie). Before starting the analysis I know that Eredivisie is considered one of the most attacking leageues in the world, so let's see if this statement is expressed by their statistics.
@@ -29,7 +31,8 @@ data(f_data_sm)
 
 ```{r prob1.1}
 eredivisie <- f_data_sm %>% 
-  filter(LEAGUE == "Eredivisie")
+  filter(LEAGUE == "Eredivisie") %>%
+    select(-c(COUNTRY, LEAGUE))
 
 home_goals <- eredivisie %>%
   group_by(SEASON, HOMETEAM) %>%
@@ -48,15 +51,79 @@ mean_goals$AWAY_MEAN <- away_goals$AWAY_MEAN
 2. Construct a plot using ggplot to show how this number is changing over time. Comment
 Note: you need to have SEASON on x-axis. Show average Home goals and Away goals on the same plot. Be sure that your plot has appropriate axis names and title.(4p)
 ```{r}
+#TODO MUST BE IMPROVED !!!!!
+
+all_mean <- eredivisie %>%
+group_by(SEASON) %>%
+summarise(HOME_MEAN = mean(FTHG), 
+          AWAY_MEAN = mean(FTAG))
+
+all_mean %>%
+  ggplot(aes(x = reorder(factor(SEASON), AWAY_MEAN))) + 
+  geom_bar(aes(y = HOME_MEAN),
+           stat = "identity",
+           fill = "red") + 
+  geom_bar(aes(y = AWAY_MEAN),
+           stat = "identity",
+           fill = "blue") + 
+  coord_flip() + 
+  labs(x = "SEASON", y = "AVERAGE NUMBER OF GOALS") +
+  ggtitle("The Average numbers of home and away goals scored in each year")
 
 ```
 
 
 3. Interpret the plot (4p)
 
+As it is clearly visible from the plot, the avarege number of goals scored by the home teams was higher in every year of the provided region. 2018/2019 was the most productive season, as we can see that the highest number of average home goals scored by home and away teams occured in that period. Whereas the lowest numbers in these categories were recorded un 1997. The highest difference in average home goals and average away goals was in 2002, while the lowest ones were in 2015, 2016, 2018
+
 4. Think of your own approach on how will you measure home team advantage given the data you have. Calculate Home team advantage for your league and for all other leagues over time (4p).
 
 ```{r}
+#Let's add points to our data set
+#Divide the points into two sections
+#Points got from home games and 
+#Points got from away games
+#and then take the differences
+pick_leageue <- function(data = f_data_sm,league) {
+  league_df <- f_data_sm %>%
+    filter(LEAGUE == league)
+}
+
+home_advantage <- function(data){
+  
+  data_home_wins <- data %>%
+    group_by(SEASON) %>% 
+    filter(FTR == "H") %>%
+    summarise(POINTS = 3*n())
+  
+  data_home_draws <- data %>%
+    group_by(SEASON) %>%
+    filter(FTR == "D") %>%
+    summarise(POINTS = n())
+  
+  data_home_points <- data.frame(SEASON = data_home_wins$SEASON,
+                                HOME_POINTS = data_home_wins$POINTS + data_home_draws$POINTS)
+  
+  data_away_wins <- data %>%
+    group_by(SEASON) %>% 
+    filter(FTR == "A") %>%
+    summarise(POINTS = 3*n())
+  
+  #The draw points for home and away teams are the same
+  
+  data_away_points <- data.frame(SEASON = data_away_wins$SEASON,
+                                AWAY_POINTS = data_away_wins$POINTS + data_home_draws$POINTS)
+  
+  data_points <- data_home_points
+  data_points$AWAY_POINTS <- data_away_points$AWAY_POINTS
+  
+  data_points <- data_points %>% 
+    group_by(SEASON) %>%
+    mutate(DIFF = (HOME_POINTS - AWAY_POINTS),
+           MATCHES = (HOME_POINTS - AWAY_POINTS)/3 ) %>%
+    arrange(desc(DIFF))
+}
 
 ```
 
@@ -64,8 +131,31 @@ Note: you need to have SEASON on x-axis. Show average Home goals and Away goals 
 5. Plot the results of the exercise 4 here using ggplot2 and interpret it (4p).
 
 ```{r}
+ered_points <- home_advantage(eredivisie)
+
+ered_points %>%
+  ggplot(aes(x = reorder(factor(SEASON), DIFF))) + 
+  geom_bar(aes(y = DIFF),
+           stat = "identity",
+           fill = "red") + 
+  geom_bar(aes(y = MATCHES),
+         stat = "identity",
+         fill = "blue") + 
+  coord_flip() +
+  labs(x = "SEASON", y = "The difference in points gained by home teams and away teams") +
+  ggtitle("The average number of how many more games won by home teams")
+
+
+#As we can se the biggest difference in the amount of 
+#points gained by teams at home and away was in 2002
+#and the smallest difference was in 2005
+#If we divide the largest difference in points gained in 2002(288)
+#by 3, we get that on average home team won the game in 96 more matches 
+#and if we go further and divide 96/18 = 5.33333 we get that in that season
+#a team won on average 5 more games at home
 
 ```
+
 
 
 #### Predictions
@@ -73,13 +163,129 @@ Note: you need to have SEASON on x-axis. Show average Home goals and Away goals 
 1. With your chosen league, predict the probabilities of the first week of the season. Use distribution approach. (4p)
 
 ```{r}
+#Let's use the data from the previous season 
+#2018/2019 for the relevant conditions of the teams.
+#However for the three teams that were promoted to the
+#league we will use the last season when the teams were 
+#in Eredivisie
+
+relegated <- c( "NAC Breda", 
+                "Excelsior", 
+                "Graafschap" )
+
+promoted <- c( "Twente",
+               "Waalwijk",
+               "Sparta Rotterdam" )
+
+ered_latest <- eredivisie %>% 
+  filter(SEASON == 2019, 
+         !(HOMETEAM %in% relegated | AWAYTEAM %in% relegated))
+
+latest_stats <- function(data, team){
+  team_df <- data %>%
+    filter(HOMETEAM == team | AWAYTEAM == team) %>%
+    filter(SEASON == max(SEASON))
+  
+  return (as.data.frame(team_df))
+}
+
+twente <- latest_stats(eredivisie, "Twente")
+waalwijk <- latest_stats(eredivisie, "Waalwijk")
+sparta <- latest_stats(eredivisie, "Sparta Rotterdam")
+
+promoted_teams <- rbind(twente,waalwijk,sparta)
+ered_latest <- rbind(ered_latest, promoted_teams)
+
+home_means_promoted <- ered_latest %>%
+  filter((SEASON != "2019") & HOMETEAM %in% promoted) %>%
+  group_by(HOMETEAM) %>%
+  summarise(mean = mean(FTHG))
+
+away_means_promoted <- ered_latest %>%
+  filter((SEASON != "2019") & AWAYTEAM %in% promoted) %>%
+  group_by(AWAYTEAM) %>%
+  summarise(mean = mean(FTAG))
+
+home_means <- ered_latest %>%
+  filter(SEASON == "2019") %>%
+  group_by(HOMETEAM) %>%
+  summarise(mean = mean(FTHG))
+
+away_means <- ered_latest %>%
+  filter(SEASON == "2019") %>%
+  group_by(AWAYTEAM) %>%
+  summarise(mean = mean(FTAG))
+
+home_means_latest <- rbind(home_means, home_means_promoted) %>%
+  arrange(desc(mean))
+away_means_latest <- rbind(away_means, away_means_promoted) %>% 
+  arrange(desc(mean))
+
+
+
+get_probs <- function(home_means = home_means_latest, 
+                      away_means = away_means_latest, 
+                      home_team, away_team) {
+  home_team_mean <- (home_means %>%
+    filter(HOMETEAM == home_team))$mean
+  away_team_mean <- (away_means %>%
+    filter(AWAYTEAM == away_team))$mean
+  
+  options(scipen = 999)
+  goal_probs_home <- dpois(c(0:9), 
+                           lambda = home_team_mean)
+  goal_probs_away <- dpois(c(0:9),
+                           lambda = away_team_mean)
+  game_matrix <- goal_probs_home %*% t(goal_probs_away)
+  draw_prob <- sum(diag(game_matrix))
+  home_prob <- sum(game_matrix[lower.tri(game_matrix)])
+  away_prob <- sum(game_matrix[upper.tri(game_matrix)])
+  
+  probs <- list(Home_Win = home_prob, 
+                Draw = draw_prob,
+                Away_Win = away_prob)
+  print(probs)
+  
+  return (probs)
+}
+
+
+
+# PEC Zwolle	-	Willem II	
+# Vitesse	-	AFC Ajax	
+# FC Emmen	-	FC Groningen
+# VVV-Venlo	-	RKC Waalwijk
+# FC Twente	-	PSV Eindhoven
+# Heracles Almelo	-	sc Heerenveen
+# Feyenoord	-	Sparta Rotterdam
+# ADO Den Haag	-	FC Utrecht
+# AZ Alkmaar	-	Fortuna Sittard
+
+
 
 ```
 
 Probabilities
 
 ```{r}
-
+zwolle_willem <- get_probs(home_team = "Zwolle",
+                           away_team = "Willem II")
+vitesse_ajax <- get_probs(home_team = "Vitesse",
+                          away_team = "Ajax")
+emmen_groningen <- get_probs(home_team = "FC Emmen",
+                             away_team = "Groningen")
+venlo_rkc <- get_probs(home_team = "VVV Venlo",
+                       away_team = "Waalwijk")
+twente_psv <- get_probs(home_team = "Twente",
+                       away_team = "PSV Eindhoven")
+hearcles_heerenven <- get_probs(home_team = "Heracles",
+                                away_team = "Heerenveen")
+feyenord_spart <- get_probs(home_team = "Feyenoord",
+                            away_team = "Sparta Rotterdam")
+ado_utrecht <- get_probs(home_team = "Den Haag",
+                         away_team = "Utrecht")
+az_fortuna <- get_probs(home_team = "AZ Alkmaar",
+                        away_team = "For Sittard") 
 ```
 
 
@@ -89,18 +295,113 @@ Probabilities
 # Data preperation
 
 ```{r}
+#Let's use the same data frame, constructed in the previous example,
+#that contains the most relevant data for all of the teams
+
+
+home_games <- ered_latest %>%
+  filter(SEASON == "2019") %>%
+  select(c("HOMETEAM", "AWAYTEAM", "FTHG")) %>%
+  mutate(Home = 1, New = 0)
+
+away_games <- ered_latest %>%
+  filter(SEASON == "2019") %>%
+  select(c("AWAYTEAM", "HOMETEAM", "FTAG")) %>%
+  mutate(Home = 0, New = 0)
+
+
+home_games_promoted <- ered_latest %>%
+  filter(SEASON != "2019" & HOMETEAM %in% promoted) %>%
+  select(c("HOMETEAM", "AWAYTEAM", "FTHG")) %>%
+  mutate(Home = 1, New = 1)
+
+away_games_promoted <- ered_latest %>%
+  filter(SEASON != "2019" & AWAYTEAM %in% promoted) %>%
+  select(c("AWAYTEAM", "HOMETEAM", "FTAG")) %>%
+  mutate(Home = 0, New = 1)
+
+colnames(home_games) <- c("Team", "Opponent", "Goal", "Home", "Newcomer")
+colnames(away_games) <- c("Team", "Opponent", "Goal", "Home", "Newcomer")
+colnames(home_games_promoted) <- c("Team", "Opponent", "Goal", "Home", "Newcomer")
+colnames(away_games_promoted) <- c("Team", "Opponent", "Goal", "Home", "Newcomer")
+
+ered_double_games <- rbind(home_games,
+                           away_games,
+                           home_games_promoted,
+                           away_games_promoted)
+
 
 ```
 
 # Model
 
 ```{r}
+poisson_model <- glm(Goal~Team+Opponent+Home, 
+                     data = ered_double_games, 
+                     family = poisson(link = log))
 
+poisson_model
+coefficients(poisson_model)
 ```
 
 # Probalities
 
 ```{r}
+get_probs_poisson <- function(model = poisson_model, 
+                              home_team, 
+                              away_team){
+  options(scipen = 1, digits = 4)
+  home_average <- predict(model,data.frame(Home = 1,
+          Team = home_team, 
+          Opponent = away_team), 
+          type = "response")
+  
+  away_average <- predict(model,data.frame(Home = 0,
+        Team = away_team, 
+        Opponent = home_team), 
+        type = "response")
+  
+  simulated_games <- rskellam(10000,
+                              mu1 = home_average,
+                              mu2 = away_average)
+  home_win <- sum(dskellam(c(1:100),
+                           home_average,
+                           away_average))
+  away_win <- sum(dskellam(c(-100:-1),
+                         home_average,
+                         away_average))
+  draw <- sum(dskellam(0,
+                       home_average,
+                       away_average))
+  
+  probs <- list(Home_Win = home_win,
+                Away_Win = away_win,
+                Draw = draw)
+  print(probs)
+  return(probs)
+}
+
+
+
+
+zwolle_willem_poiss <- get_probs_poisson(home_team = "Zwolle",
+                           away_team = "Willem II")
+vitesse_ajax_poiss <- get_probs_poisson(home_team = "Vitesse",
+                          away_team = "Ajax")
+emmen_groningen_poiss <- get_probs_poisson(home_team = "FC Emmen",
+                             away_team = "Groningen")
+venlo_rkc_poiss <- get_probs_poisson(home_team = "VVV Venlo",
+                       away_team = "Waalwijk")
+twente_psv_poiss <- get_probs_poisson(home_team = "Twente",
+                       away_team = "PSV Eindhoven")
+hearcles_heerenven_poiss <- get_probs_poisson(home_team = "Heracles",
+                                away_team = "Heerenveen")
+feyenord_spart_poiss <- get_probs_poisson(home_team = "Feyenoord",
+                            away_team = "Sparta Rotterdam")
+ado_utrecht_poiss <- get_probs_poisson(home_team = "Den Haag",
+                         away_team = "Utrecht")
+az_fortuna_poiss <- get_probs_poisson(home_team = "AZ Alkmaar",
+                        away_team = "For Sittard")
 
 ```
 
@@ -108,8 +409,63 @@ Probabilities
 
 3. Compare the probabilities to each other and to the actual results. How good do you think you were? Can you think of a metric that can help us to understand how good are our predictions over the week (2p)
 
+```{r}
+# PEC Zwolle	-	Willem II	1:3 (1:1)		
+# Vitesse	-	AFC Ajax	2:2 (1:1)		
+# FC Emmen	-	FC Groningen	0:1 (0:0)		
+# VVV-Venlo	-	RKC Waalwijk	3:1 (0:1)		
+# FC Twente	-	PSV Eindhoven	1:1 (1:0)		
+# Heracles Almelo	-	sc Heerenveen	0:4 (0:3)		
+# Feyenoord	-	Sparta Rotterdam	2:2 (0:0)		
+# ADO Den Haag	-	FC Utrecht	2:4 (2:2)		
+# AZ Alkmaar	-	Fortuna Sittard	4:0 (0:0)
 
 
+zwolle_willem #38% A
+#dist did better
+zwolle_willem_poiss #28% A
+
+
+vitesse_ajax #
+#poisson again did better for predicting the draw 
+vitesse_ajax_poiss #54%-A 20%-D
+
+emmen_groningen #15%-A
+#poisson
+emmen_groningen_poiss #34%-A
+
+venlo_rkc #40% -H
+#dist
+venlo_rkc_poiss#49% - A 
+
+twente_psv #30% -D
+#dist
+twente_psv_poiss #20% -D
+
+hearcles_heerenven
+#both did very bad
+hearcles_heerenven_poiss
+
+
+feyenord_spart
+#
+feyenord_spart_poiss
+
+
+ado_utrecht
+#vs
+ado_utrecht_poiss
+
+az_fortuna
+#vs
+az_fortuna_poiss
+
+
+
+#It was 23:50 So I did not finish some parts,
+#but from what I have analyzed it seems 
+#like predicitons with dist are more precise in predictng draws
+```
 ### Bradley terry model
 
 You need to construct Bradley-Terry model for NBA regular season games. Dataset is nba2009_2018 from SportsAnalytics270 package 
@@ -123,25 +479,142 @@ Remove the game Boston Celtics vs Indiana Pacers from the dataframe. This is a g
 1. Do the Data Prep here (4p)
 
 ```{r}
+data("nba2009_2018")
+
+nba_clean <- nba2009_2018 %>%
+  filter(!(GAME_DATE == as.Date("2013-04-16") & 
+             home.TEAM_NAME == "Boston Celtics")) %>%
+  mutate(result = ifelse(home.WL == "W","H","A")) %>%
+  select(-c(home.WL, home.TEAM_ABBREVIATION, away.TEAM_ABBREVIATION))
+
+nba_clean <- nba_clean %>% 
+  mutate(ht_w = ifelse(result == "H",1,0),
+         at_w = ifelse(result == "A",1,0))
+
+nba_filtered <- nba_clean %>%
+  mutate(home.TEAM_NAME = as.factor(home.TEAM_NAME),
+         away.TEAM_NAME = as.factor(away.TEAM_NAME))
+
+nba_win_count <- nba_filtered %>%
+    group_by(home.TEAM_NAME, away.TEAM_NAME) %>%
+      summarise(htw_count = sum(ht_w),
+                atw_count = sum(at_w))
+  
+home_levels <- levels(nba_filtered$home.TEAM_NAME)
+away_levels <- levels(nba_filtered$away.TEAM_NAME)
+
 
 ```
 
 2. Model here (4p)
 
 ```{r}
+model_1 <- BTm(cbind(htw_count,atw_count), 
+               home.TEAM_NAME, 
+               away.TEAM_NAME, 
+               data = nba_win_count, 
+               id = "team_")
+
+summary(model_1)
+abilities <- as.data.frame(BTabilities(model_1))
+abilities$team <- rownames(abilities)
+abilities <- abilities %>%
+  arrange(desc(ability))
+
+worst_team <- (abilities %>% 
+  filter(ability == min(ability)))
+
+# relevel(nba_win_count$home.TEAM_NAME, worst_team)
+# relevel(nba_win_count$away.TEAM_NAME, worst_team)
+# 
+nba_leveled <- nba_clean %>%
+  mutate(home.TEAM_NAME = as.factor(home.TEAM_NAME),
+         away.TEAM_NAME = as.factor(away.TEAM_NAME))
+
+nba_leveled$home.TEAM_NAME <- relevel(nba_leveled$home.TEAM_NAME, ref = worst_team$team)
+nba_leveled$away.TEAM_NAME <- relevel(nba_leveled$away.TEAM_NAME, ref = worst_team$team)
+
+
+nba_win_leveled <- nba_leveled %>%
+  group_by( home.TEAM_NAME, away.TEAM_NAME ) %>%
+  summarise( htw_count = sum(ht_w),
+             atw_count = sum(at_w))
+
+abilities_leveled <- abilities
+abilities_leveled$ability <- abilities_leveled$ability - worst_team$ability
+
+model_2 <- BTm(cbind(htw_count,atw_count), 
+               home.TEAM_NAME, 
+               away.TEAM_NAME, 
+               data = nba_win_leveled, 
+               id = "team_")
+BTabilities(model_2)
 
 ```
 
 3. Plot the abilities: Which team is the beast, which the worst ? (4p)
 
 ```{r}
+# abilities_leveled <- abilities %>%
+#   mutate(ho)
+
+abilities %>% 
+  ggplot(aes(x = reorder(team,ability))) + 
+  geom_bar(aes(y = ability), 
+           stat = "identity",
+           fill = 30:59) + 
+  coord_flip() +
+  labs(x = "TEAMS", y = "TEAM'S ABILITY TO WIN") +
+  ggtitle("The Teams and their abilities to win the game")
 
 ```
+```{r}
+abilities_leveled <- abilities
+abilities_leveled$ability <- abilities_leveled$ability - worst_team$ability
 
+abilities_leveled %>% 
+  ggplot(aes(x = reorder(team, ability))) + 
+  geom_bar(aes(y = ability), 
+           stat = "identity",
+           fill = 30:59) + 
+  coord_flip() + 
+  labs(x = "TEAMS", y = "TEAM'S ABILITY TO WIN") +
+  ggtitle("The Teams and their abilities to win the game")
+
+```
 
 4. Make prediciton for the first 3 games of the new season (Schedule can be found here: https://tinyurl.com/y4hpbl8f) (6p)
 
 ```{r}
+# Wed, Oct 23, 2019	7:00p	Cleveland Cavaliers		Orlando Magic					
+# Wed, Oct 23, 2019	7:00p	Detroit Pistons		Indiana Pacers					
+# Wed, Oct 23, 2019	7:00p	Chicago Bulls		Charlotte Hornets
+
+
+games <- data.frame(home.TEAM_NAME = c("Cleveland Cavaliers", 
+                                  "Detroit Pistons",
+                                  "Chicago Bulls"),
+                    away.TEAM_NAME = c("Orlando Magic",
+                                  "Indiana Pacers",
+                                  "Charlotte Hornets"))
+
+home_relevel <- levels(nba_win_leveled$home.TEAM_NAME)
+
+away_relevel <- levels(nba_win_leveled$away.TEAM_NAME)
+
+games$home.TEAM_NAME <- factor(games$home.TEAM_NAME,
+                          home_relevel)
+games$away.TEAM_NAME <- factor(games$away.TEAM_NAME,
+                          away_relevel)
+
+games_prob <- predict(model_2, 
+                      newdata = games,
+                      level = 2,
+                      type = "response")
+
+games_df <- data.frame(games, 
+                       ht_w = games_prob,
+                       at_w = 1 - games_prob)
 
 ```
 

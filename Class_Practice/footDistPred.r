@@ -4,7 +4,7 @@ library(ggplot2)
 library(magrittr)
 library(VGAM)
 data("f_data_sm")
-head(f_data_sm)
+head(f_data_sm) 
 
 f_data_sm %>%
   filter(SEASON == '2019') %>%
