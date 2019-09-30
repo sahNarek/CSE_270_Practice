@@ -23,6 +23,7 @@ I am assigned to analyze the Dutch league(Eredivisie). Before starting the analy
 
 ```{r}
 library(SportsAnalytics270)
+final_table(f_data_sm, "England", 2019)
 data(f_data_sm)
 ```
 
