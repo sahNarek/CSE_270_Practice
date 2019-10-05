@@ -23,7 +23,6 @@ I am assigned to analyze the Dutch league(Eredivisie). Before starting the analy
 
 ```{r}
 library(SportsAnalytics270)
-final_table(f_data_sm, "England", 2019)
 data(f_data_sm)
 ```
 
@@ -86,6 +85,34 @@ As it is clearly visible from the plot, the avarege number of goals scored by th
 #Points got from home games and 
 #Points got from away games
 #and then take the differences
+teams_ha_points <- function(data, country, season){
+    df <- data %>% filter(SEASON == season, COUNTRY == country) %>%
+    group_by(HOMETEAM) %>% summarise(HW = sum(FTR == "H"),
+                                     HD = sum(FTR == "D"), 
+                                     GFH = sum(FTHG),
+                                     GAH = sum(FTAG))
+    
+    df1 <- data %>% filter(SEASON == season, COUNTRY == country) %>%
+    group_by(AWAYTEAM) %>% summarise(AW = sum(FTR == "A"),
+                                     AD = sum(FTR == "D"), 
+                                     GFA = sum(FTAG),
+                                     GAA = sum(FTHG))
+    temp <- data.frame(df[,1], df$HW*3 + df$HD, df$GFH, df$GAH, df1$AW*3 + df1$AD, df1$GFA, df1$GAA)
+    rownames(temp) <- NULL
+    colnames(temp) <- c("TEAM","HOME.POINTS","GF.HOME","GA.HOME","AWAY.POINTS","GF.AWAY","GA.AWAY")
+    temp$P <- temp$HOME.POINTS + temp$AWAY.POINTS
+    temp$PD <- temp$HOME.POINTS - temp$AWAY.POINTS
+    temp$GFHAD <- temp$GF.HOME - temp$GF.AWAY #The difference of goals scored at home and and away
+    temp$GAHAD <- temp$GA.HOME - temp$GA.AWAY ##The difference of goals allowed at home and and away
+    temp <- temp %>%
+      arrange(desc(P))
+    return(temp)
+}
+
+eng_ha_points <-teams_ha_points(f_data_sm, "England", 2018)
+eng_final <- final_table(f_data_sm, "England", 2018)
+
+
 pick_leageue <- function(data = f_data_sm,league) {
   league_df <- f_data_sm %>%
     filter(LEAGUE == league)
