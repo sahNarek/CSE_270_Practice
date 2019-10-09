@@ -146,11 +146,11 @@ home_advantage <- function(data){
   data_points <- data_home_points
   data_points$AWAY_POINTS <- data_away_points$AWAY_POINTS
   
-  data_points <- data_points %>% 
+  return(data_points <- data_points %>% 
     group_by(SEASON) %>%
     mutate(DIFF = (HOME_POINTS - AWAY_POINTS),
            MATCHES = (HOME_POINTS - AWAY_POINTS)/3 ) %>%
-    arrange(desc(DIFF))
+    arrange(desc(DIFF)))
 }
 
 ```
@@ -161,7 +161,19 @@ home_advantage <- function(data){
 ```{r}
 ered_points <- home_advantage(eredivisie)
 
-ered_points %>%
+plot_ha_line <- function(data){
+  data %>%
+  ggplot(aes(x = SEASON, y = DIFF)) + geom_line(color="red")
+}
+
+ered_home_adv <- teams_ha_points(f_data_sm,"Netherlands",2019)
+
+ggplot(data = ered_home_adv, aes(x = TEAM))+
+  geom_line(data = ered_home_adv, aes(y = PD), color = "red")
+
+
+plot_ha <- function(data) {
+  data %>%
   ggplot(aes(x = reorder(factor(SEASON), DIFF))) + 
   geom_bar(aes(y = DIFF),
            stat = "identity",
@@ -170,8 +182,21 @@ ered_points %>%
          stat = "identity",
          fill = "blue") + 
   coord_flip() +
-  labs(x = "SEASON", y = "The difference in points gained by home teams and away teams") +
+  labs(x = "SEASON", y = "The difference in points gained by home teams and away teams") 
   ggtitle("The average number of how many more games won by home teams")
+}
+
+
+all_leagues <- f_data_sm %>% 
+  group_by(COUNTRY) %>%
+  group_modify(~home_advantage(.x)) %>%
+  arrange(desc(SEASON), desc(DIFF))
+  
+plot_ha_line(all_leagues) + facet_grid(rows = vars(COUNTRY), 
+                                       scales = "free",
+                                       space = "free")
+
+# plot_ha(all_leagues) + facet_grid(. ~ COUNTRY)
 
 
 #As we can se the biggest difference in the amount of 
