@@ -51,7 +51,6 @@ mean_goals$AWAY_MEAN <- away_goals$AWAY_MEAN
 2. Construct a plot using ggplot to show how this number is changing over time. Comment
 Note: you need to have SEASON on x-axis. Show average Home goals and Away goals on the same plot. Be sure that your plot has appropriate axis names and title.(4p)
 ```{r}
-#TODO MUST BE IMPROVED !!!!!
 
 all_mean <- eredivisie %>%
 group_by(SEASON) %>%
@@ -143,6 +142,7 @@ eredivisie_detailed_ha %>%
       geom_line(aes(y = MEAN.GWH), col="blue")+
           geom_point(aes(y = MEAN.GAD), col = "orange") +
           geom_line(aes(y = MEAN.GAD), col="orange")
+
       
   
 home_advantage <- function(data){
@@ -209,9 +209,31 @@ team_ha_adv_filtered <- function(data = f_data_sm, country, season) {
 ered_home_adv_by_teams <- team_ha_adv_filtered(country = "Netherlands",
                                                season = 2019)
 
+all_mean %>%
+  ggplot(aes(x = reorder(factor(SEASON), AWAY_MEAN))) + 
+  geom_bar(aes(y = HOME_MEAN),
+           stat = "identity",
+           fill = "red") + 
+  geom_bar(aes(y = AWAY_MEAN),
+           stat = "identity",
+           fill = "blue") + 
+  coord_flip() + 
+  labs(x = "SEASON", y = "AVERAGE NUMBER OF GOALS") +
+  ggtitle("The Average numbers of home and away goals scored in each year")
 
-ggplot(data = ered_home_adv, aes(x = TEAM))+
-  geom_line(data = ered_home_adv, aes(y = PD), color = "red")
+
+ered_home_adv_by_teams %>%
+  ggplot(aes(x = reorder(TEAM, P))) + 
+    geom_bar(aes(y = PD),
+             stat = "identity",
+             fill = "green") +
+      geom_bar(aes(y = GFHAD),
+             stat = "identity",
+             fill = "blue") + 
+        geom_bar(aes(y = GAHAD),
+             stat = "identity",
+             fill = "red") + 
+          coord_flip()
 
 
 plot_ha <- function(data) {
