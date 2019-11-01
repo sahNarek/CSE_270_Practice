@@ -8,7 +8,7 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(SportsAnalytics270)
-packages_list <- c("ggplot2", "dplyr")
+packages_list <- c("ggplot2", "dplyr","reshape")
 
 install_or_call <- function(list = packages_list){
   installed <- installed.packages()[,"Package"]
@@ -22,8 +22,26 @@ install_or_call <- function(list = packages_list){
 
 install_or_call()
 data("f_data_sm")
-data("transfers")
-transfers <- na.omit(transfers)
+
+transfers <- read.csv("transfers.csv")
+attendance <- read.csv("attendance.csv") # in thousands
+revenue <- read.csv("revenue.csv") # in millions of euros
+
+countries <- c("England","Germany","Spain","Italy")
+
+wide_to_long <- function(data, ids, colnames){
+  result <- melt(data, id = ids)
+  colnames(result) <- colnames
+  return(result %>% 
+           filter(COUNTRY %in% countries))
+}
+revenue <- wide_to_long(revenue, c("SEASON"),c("SEASON","COUNTRY","REVENUE") )
+attendance <- wide_to_long(attendance, c("Season"),c("SEASON","COUNTRY","ATTENDANCE") )
+# The data is gained from statista.com
+# https://bit.ly/2Wmxrji revenue
+# https://bit.ly/335DElS attendance
+transfers <- transfers %>%
+  arrange(desc(Transfer_fee))
 ```
 
 
@@ -38,7 +56,6 @@ Noll-Skully number
 * Chose any 4 leagues from f_data_sm on your own
 * Calculate Noll_Skully Number as a whole for all the seasons for the given league. (2p)
 ```{r}
-countries <- c("England","Germany","Spain","Italy")
 top_4_data <- f_data_sm %>%
   filter(COUNTRY %in% countries)
 
@@ -167,7 +184,7 @@ top_4_nsc %>%
   ggplot(aes(x = reorder(COUNTRY,NSC))) + 
   geom_bar(aes(y = NSC),stat = "identity") + 
   facet_grid(.~V) + 
-  labs(x = "COUNTRIES", y = "NOLL SCULLY NUMBER") + 
+  labs(x = "COUNTRIES", y = "NOLL SKULLY NUMBER") + 
   ggtitle("CB CALCULATIONS USING DIFFERENT APPROACHES")
 # As we can see the differences in the leagues in terms of CB balances remain
 # almost the same for V1 and V2, but become more sparse for V3. 
@@ -243,7 +260,7 @@ top_4_nsc_v4 %>%
   ggplot(aes(x = SEASON, y = NSN)) + 
   geom_line() + 
   facet_grid(.~COUNTRY) + 
-  labs(x = "SEASON", y = "NOLL SCULLY NUMBER") + 
+  labs(x = "SEASON", y = "NOLL SKULLY NUMBER") + 
   ggtitle("CB CALCULATIONS OVER TIME IN TOP 4 LEAGUES")
 # As we can see currently and over time England seems to have
 # the highest competitive balance. We can see that the highest 
@@ -267,6 +284,217 @@ Show correlation (on plot and calculating correlation coefficient) between these
 Explain why do you think these variables are leading or lagging. 10p
 
 ```{r}
+# As I have already analyzed Noll-Skully number as
+# a CB factor, now let's do calculations for HHI,dHHI
+# and C5(top 5 teams)
+# As we will play with revenue data later
+# let's adopt the standings to them
 
+top_4_standings <- top_4_standings %>%
+  filter(SEASON >= 1997)
+
+top_4_HHI <- top_4_standings %>%
+  group_by(SEASON, COUNTRY) %>%
+  mutate(PERC = POINTS / sum(POINTS)) %>%
+  summarise(HHI = sum(PERC^2))
+top_4_dHHI <- top_4_standings %>%
+  group_by(SEASON, COUNTRY) %>%
+  mutate(PERC = POINTS / sum(POINTS)) %>%
+  summarise(HHI = sum(PERC^2) - 1 / n())
+
+top_5_teams <- top_4_standings %>%
+  group_by(SEASON, COUNTRY) %>%
+  filter(POSITION <= 5) %>%
+  summarise(TOP.P = sum(POINTS))
+all_teams <- top_4_standings %>%
+  group_by(SEASON, COUNTRY) %>%
+  summarise(TOP.P = sum(POINTS))
+
+C5_top_4 <- data.frame(SEASON = top_5_teams$SEASON, 
+                       COUNTRY = top_5_teams$COUNTRY,
+                       C5 = top_5_teams$TOP.P / all_teams$TOP.P)
+# Revenue of the teams in the leagues affects the budgets of the teams.
+# The budget of the teams define they capability to pay "high" salaries to
+# their players. The players earn "high" salary for playing good. So in general
+# if the more players get high salary then more players will play good so more 
+# teams will play good and the competitive balance will probably increase
+
+# First let's look at the deviation in revenue per country
+revenue_gap_c <- revenue %>%
+  group_by(COUNTRY) %>%
+  summarise(TOTAL.REV = sum(REVENUE), SD = sd(REVENUE)) %>%
+  arrange(desc(TOTAL.REV))
+# English Premier League had the highest revenue over time
+# and the highest variation among the league's revenues over
+# years.
+
+# The same in years
+revenue_gap_s <- revenue %>%
+  group_by(SEASON) %>%
+  summarise(TOTAL.REV = sum(REVENUE), SD = sd(REVENUE)) %>%
+  arrange(desc(TOTAL.REV))
+# Absolutely logical order, as nowadays football is 
+# becoming more and more like an economic field for
+# making money, so the revenue and deviation of it in
+# top leagues is increasing year by year.
+
+revenue_gap_cs <- revenue %>%
+  group_by(COUNTRY,SEASON) %>%
+  summarise(TOTAL.REV = sum(REVENUE)) %>%
+  arrange(desc(TOTAL.REV))
+
+# England! England! England! everywhere
+# The main reason behind it is that English 
+# teams(not only Premier League) earn huge ammounts of 
+# money from TV contracts compared to other leagues.
+
+top_4_nsc_v4 <- top_4_nsc_v4 %>%
+  filter(SEASON >= 1997)
+
+# Now let's see how these numbers affect the CB 
+# as the revenue data is avalible starting from season
+# 1996/1997 let's not consider the seasons before it
+cor(revenue_gap_cs$TOTAL.REV, top_4_dHHI$HHI)
+cor(revenue_gap_cs$TOTAL.REV, top_4_HHI$HHI)
+cor(revenue_gap_cs$TOTAL.REV, C5_top_4$C5)
+cor(revenue_gap_cs$TOTAL.REV, top_4_nsc_v4$NSN)
+# All the meausers except the NOLL SKULLY number
+# are uncorelated to the total revenue.
+# C5 and HHI share similar level of corelation
+# with total revenue (-0.35, -0.51), whereas
+# HHI holds value of -0.11, being the least correlated
+# SO in general higher REVENUE => lower HHI = higher CB  
+# dHHI is more corelated than HHI as there were many cases 
+# when the number of teams changed during over seasons,
+# and dHHI handles that cases leading to higher corelation.
+# For NSN case, the numbers work in opposite direction
+# as it has a strong corelation with total revenue, however
+# the higher the NSN the lower the CB so the harmony is acquired.
+
+#Now let's plot their corelations
+
+plot_data <- data.frame(SEASON = top_4_dHHI$SEASON, COUNTRY = top_4_dHHI$COUNTRY, 
+                        TOTAL.REV = revenue_gap_cs$TOTAL.REV, NSN = top_4_nsc_v4$NSN,
+                        C5 = C5_top_4$C5, HHI = top_4_HHI$HHI, dHHI = top_4_dHHI$HHI)
+
+plot_data %>%
+  ggplot(aes(x = TOTAL.REV, y = dHHI)) + 
+  geom_point() +
+  geom_smooth() + 
+  labs(x = "TOTAL REVENUE IN MILLIONS", y = "HHI index for CB") + 
+  ggtitle("Correlation of total revenue and Competitive Balance")
+# Now let's see how the changes in CB affect the attendance
+
+# Attendance data misses values for 2019 so let's add means by country
+att_means <- attendance %>%
+  group_by(COUNTRY) %>% 
+  summarise(MEAN.ATT = mean(ATTENDANCE)) %>%
+  mutate(SEASON = "2019")
+att_means <- att_means[c(3, 1:2)]
+colnames(att_means) <- c("SEASON","COUNTRY","ATTENDANCE")
+attendance <- rbind(attendance, att_means) 
+cor(attendance$ATTENDANCE, top_4_dHHI$HHI)
+# As we can see the corelation is again negative
+# for these two factors, let's visualize them for making
+# conclusions
+ggplot() + 
+  geom_point(aes(x = attendance$ATTENDANCE, y = top_4_dHHI$HHI)) +
+  labs(x = "AVERAGE ATTENDANCE", y = "HHI index for CB") + 
+  ggtitle("Correlation of Attendance and Competitive Balance")
+# As we can see we have low bias, but high variance
+# Seems like the competitive balance value stays stable 
+# regarding to attendance number but gets higher with the increase
+# in attendance in general
+
+
+# To cap it all, seems like the leading factor is the team revenue
+# and the lag factor is the attendance.
+# IN GENERAL high REVENUE = high CB = higher ATTENDANCE
+# I believe that this connections works on the opposite way two, so 
+# if we take attendance as a leading factor it would effect the CB
+# which in case will effect the leagues revenue.
+# Let's check the correlation between attendance and revenue
+
+cor(attendance$ATTENDANCE, revenue_gap_cs$TOTAL.REV)
+# the correlation is positive as excpected
+
+# Dear Mr. Madoyan, I wanted to analyze the investments of the leagues
+# in transfermarkt as a leading factor and In my opinion
+# the league's ranking would have been the lagging factor, but the data available in the library
+# SportsAnalytics270 is very messy and it will take a lot of time for me to 
+# clean it up. So my leading and lagging variables are attandance(leading) -> revenue(lagging)
+# and revenue(leading) -> revenue(lagging)
+# I managed to find a dataset of the transfers from 2000 to 2018 that i can use, 
+# but at the time of submission I was not able to find a usable data about the rankings of 
+# the leagues over time.
+
+unique(top_4_standings$LEAGUE)
+unique(transfers$League_to)
+
+leagues <- c("LaLiga", "Serie A", "1.Bundesliga", "Premier League")
+
+top_4_transfers_from <- transfers %>%
+  filter(League_from %in% leagues)
+
+selling <- top_4_transfers_from %>%
+  group_by(Season, League_from) %>%
+  summarise(Sold = sum(Transfer_fee))
+
+top_4_transfers_to <- transfers %>%
+  filter(League_to %in% leagues)
+
+
+buying <- top_4_transfers_to %>%
+  group_by(Season, League_to) %>%
+  summarise(Bought = sum(Transfer_fee))
+
+top_4_dHHI <- top_4_dHHI %>%
+  filter(SEASON >= 2001)
+
+buying$Season = top_4_dHHI$SEASON
+selling$Season = top_4_dHHI$SEASON
+
+transfer_profits <- data.frame(Season = buying$Season, League = buying$League_to, 
+                               spent = buying$Bought, earn = selling$Sold)
+transfer_profits$profit <- transfer_profits$spent - transfer_profits$earn
+
+# If the profit is lower it means that the country is
+# buying more than it is selling, meaning that more and 
+# more new players join the league, whereas a negative profit
+# means that the country's teams mostly sell it's players and does not
+# buy alternatives
+
+# Let's again do the checks for correlation
+cor(transfer_profits$profit, top_4_dHHI$HHI)
+# small but positive corellation, meaning that
+# the more the profit the higher the dHHI so lower
+# the CB.
+# Now let's seperate buying and selling cases
+cor(transfer_profits$spent, top_4_dHHI$HHI) #0.21
+cor(transfer_profits$earn, top_4_dHHI$HHI) #0.22
+# The little difference in correlation in benefit to
+# earning. This is somehow connected to the revenew 
+# analysis, as the money got from selling players
+# is part of the leagues revenew.
+# However, I believe that the attendacne of the league
+# will drop if teams will sell their players
+# as some funs want to watch the games to see their idols in action
+
+attendance <- attendance %>%
+  filter(SEASON > 2000)
+cor(transfer_profits$earn, attendance$ATTENDANCE)
+# The negative correlation supports my opinion
+
+ggplot() + 
+  geom_point(aes(x = attendance$ATTENDANCE, y = transfer_profits$spent)) +
+  labs(x = "AVERAGE ATTENDANCE", y = "MONEY SPENT ON TRANSFERS") + 
+  ggtitle("Correlation of Attendance and Spendings on Transfers")
+# We can see that, in the cases of low attendance the leagues spend 
+# more money on buying new players, and when the attendance is getting higher
+# they start to spend less.
+
+
+# High Profit = High dHHI = low CB = low Attendance
+# Profit(leading) Attendance(lagging) 
 ```
 

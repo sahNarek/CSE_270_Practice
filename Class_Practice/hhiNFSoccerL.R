@@ -139,7 +139,7 @@ HHI_eng <- england_st %>%
   summarise(HHI = sum(Perc ^ 2))
 
 HHI_eng %>%
-  ggplot(aes(SEASON, HHI)) +
+  ggplot(aes(SEASON, HHI)) +HHI
   geom_bar(stat = "identity")
 
 dHII <- seriea_st %>%
