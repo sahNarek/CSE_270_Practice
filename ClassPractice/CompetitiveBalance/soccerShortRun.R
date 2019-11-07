@@ -3,7 +3,9 @@ library(dplyr)
 library(odds.converter)
 library(measures)
 library(ggplot2)
+
 data("f_data_sm")
+
 f_2009 <- f_data_sm %>%
   filter(SEASON > 2008,
          COUNTRY %in% c("Italy","Germany","Spain",
@@ -33,6 +35,12 @@ brier_score_s <- f_2009 %>%
 brier_score_s <- as.data.frame(brier_score_s)
 brier_score_s$SCORE <- unlist(brier_score_s$SCORE)
 
+ggplot(brier_score, aes(x=COUNTRY, y = SCORE)) +
+  geom_bar(stat = "identity") + 
+  coord_cartesian(ylim = c(0.5, 0.6)) + 
+  ggtitle("Match Uncertainity by country")
+
+
 brier_score_s %>%
   filter(COUNTRY == "Spain") %>%
   ggplot(aes(x = SEASON, y = SCORE)) + 
@@ -41,8 +49,7 @@ brier_score_s %>%
 
 brier_score_s %>%
   ggplot(aes(x = SEASON, y = SCORE)) + 
-  geom_bar(stat = "identity") + 
-  scale_x_continuous(breaks = 2009:2019) + 
+  geom_bar(stat = "identity", position = position_dodge(width = 1)) + 
   facet_grid(~COUNTRY) + 
-  scale_x_continuous(breaks = 2009:2019)
+  scale_x_continuous(breaks = 2009:2019) + 
   coord_flip()
