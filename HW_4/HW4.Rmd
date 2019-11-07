@@ -1,0 +1,35 @@
+---
+title: "HW4 - Individual performance metric"
+author: ""
+date: ""
+output: pdf_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(SportsAnalytics270)
+data("mlb_salary")
+```
+
+50 points
+
+Your goal is to write 3-4 page report on an individual performance metric.
+Find an indivudual performance metric for any team game you like
+Describe its pro's and cons
+In your analysis use vizualizations, 
+calculate correlations with other metrics,
+use some kind of modeling
+
+The report needs to be done in r markdown. For all your chunsk, in chunk options, set echo=F
+```{r, echo=F}
+
+```
+
+This will ensure that the R code will not appear in your final pdf report. The pdf report should be 3-4 pages without R code.
+
+Submit to me.
+pdf report
+r markdown
+data used
