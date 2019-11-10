@@ -1,35 +1,442 @@
 ---
 title: "HW4 - Individual performance metric"
-author: ""
-date: ""
+author: "Narek Sahakyan"
+date: "8/11/2019"
 output: pdf_document
 ---
 
+# Individual Perfomance in Baseball  
 
+I have decided to measure individual 
+perfomance of the players and use my own
+metrics for identyfing their skils,
+Baseball has a lot of data available, 
+but to have some contemporary facotrs 
+I have filtered the data 
+so that it contains information about 
+baseball games in the twentieth century.
+The data was derived from the official website of Seah Lahman
+- [data](http://www.seanlahman.com/baseball-archive/statistics/) \
+As baseball is a very popular sport with a lot of statistical approaches \
+and measures, I decided to create my own metrics based on the knowledge I derived \
+about the sport during two days \
+
+It is very interesting for me to analyze a sport that I don't know
+well.\
+I will use several approaches for measuring individual perfomance
+of players,\
+and will visualize findings for them.\  
+\
+The methods are 
+
+- Awards won by the players
+- Batter's efficiency
+- Pitcher's efficiency
+
+# Awards won by players
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(SportsAnalytics270)
-data("mlb_salary")
+packages_list <- c("ggplot2", "dplyr", "SportsAnalytics270", "Lahman")
+
+install_or_call <- function(list = packages_list){
+  installed <- installed.packages()[,"Package"]
+  for( package in packages_list ){
+    if(!(package %in% installed)){
+      install.packages(package)
+    }
+    do.call(library, list(package))
+  }
+}
+
+install_or_call()
+
+awards <- read.csv("baseball/AwardsPlayers.csv", stringsAsFactors = F)
+players_data <- read.csv("baseball/People.csv", stringsAsFactors = F)
+teams <- read.csv("baseball/Teams.csv", stringsAsFactors = F)
+salaries <- read.csv("baseball/Salaries.csv", stringsAsFactors = F)
+data("Batting")
+data("Pitching")
 ```
 
-50 points
+```{r, echo=F}
+players_data$debut <- as.Date(players_data$debut)
+players_data$finalGame <- as.Date(players_data$finalGame)
 
-Your goal is to write 3-4 page report on an individual performance metric.
-Find an indivudual performance metric for any team game you like
-Describe its pro's and cons
-In your analysis use vizualizations, 
-calculate correlations with other metrics,
-use some kind of modeling
+Batting <- Batting %>%
+  filter(yearID >= "1999")
 
-The report needs to be done in r markdown. For all your chunsk, in chunk options, set echo=F
+
+salaries <- salaries %>%
+  filter(yearID >= "1999")
+
+get_real_names <- function(source = players_data, id){
+  source <- as.data.frame(source)
+  return(source[source$playerID %in% id,]$nameGiven)
+}
+
+
+players_data <- players_data %>%
+  filter(finalGame >= as.Date("1999-01-01"))
+
+teams <- teams %>%
+  filter(yearID >= "1999")
+
+
+awards <- awards %>%
+  filter(yearID >= "1999")
+
+awards_by_players <- awards %>%
+  group_by(playerID) %>%
+  summarise(award_count = n()) %>%
+  arrange(desc(award_count))
+
+real_names <- sapply(awards_by_players$playerID, get_real_names, source = players_data)
+awards_by_players$real_name <- real_names
+
+most_awards <- awards_by_players[1:20, c(3,2)]
+
+print.data.frame(most_awards)
+```
+
+Here is the list of the 20 players with the \
+highetst ammount of awards in the specified periods \
+Let's pick top 10 from these players and analyze(visualize) \
+their awards and positions
+
+\newpage
+
+Let's pick the most prestigious awards and see how were these \
+distributed among these players
+
+Let's pick three awards
+
+- MVP(Most Valuable Player) 
+- Gold Glove(Best deffensive player)
+- Silver Slugger(Best offensive player)
+
+```{r, echo=F}
+top_awards <- c("Silver Slugger","Gold Glove", "Most Valuable Player")
+top_10_valued <- awards %>%
+  filter(playerID %in% awards_by_players[1:10,]$playerID,
+         awardID %in% top_awards) %>%
+  mutate(realName = sapply(playerID,get_real_names, source = players_data)) %>%
+  select(realName, awardID, yearID, everything() )
+
+top_10_valued$awardID <- factor(top_10_valued$awardID, levels = unique(top_10_valued$awardID))
+
+```
+
+```{r, echo=F, fig.height=8, fig.width=13}
+ggplot(top_10_valued,
+       aes(x = realName, fill = awardID)) + 
+  geom_bar(position = "dodge") + 
+  theme(legend.title = element_blank()) +
+  labs(x = "Players", y = "Number of awards")
+```
+
+As the visualization shows only a few players earned all the three awards \
+Most of them were able to be anounced best in their playing position(offensive or defensive) \
+Ichore got the highest number of "Golden Glove" awards and he managed to get "MVP" and "Silver Slugger" trophies as well \
+However we can see that the attacking players are more likely to be recognized the "MVP" as there are more cases of players winning the "Silver Slugger" and "MVP" rather than winning the "MVP" and "Golden Glove" \
+
+\newline
+
+Now let's talk about the drawbacks and advantages of this method for evaluating "IP"(Individual Perfomance) \
+In my opinion this approach is very useful to identify the well recognized players for the teams and see how \
+they perfomance was evaluated by the public and professionals. \
+However this kind of approach does not give much information about the player's impact on the team \
+Also I believe that the players with the biggest trophy rooms should be among the top earners of MLB, \
+so let's check my statement \
+
+```{r, echo=F}
+mean_salaries <- salaries %>% 
+  group_by(playerID) %>%
+  summarise(meanSalary = mean(salary)) %>%
+  arrange(desc(meanSalary)) %>%
+  mutate(position = 1:n())
+
+
+salaries$real_name <- sapply(salaries$playerID, get_real_names, source = players_data)
+salaries <- salaries %>%
+  group_by(playerID) %>%
+  arrange(desc(salary))
+
+
+print.data.frame(salaries[1:10,c("real_name","yearID","salary")])
+```
+As we can see Alexander Emmanuel dominates in the market earning the highest salaries \
+in 2008 - 2011, 2016. Let's take calculate the mean of the mlb player's salaries from 1999-2016 \
+and then check which positions do our top award owners have among the highest earners \
+
+```{r, echo=F}
+awards_salaries <- mean_salaries %>%
+  filter(playerID %in% top_10_valued$playerID) %>%
+  mutate(realName = get_real_names(id = playerID) ) %>%
+  select(realName, meanSalary, position)
+
+
+print.data.frame(awards_salaries)
+```
+As we can see over time Barry Lamar had higher salary adn Alexandr Enmanuel is only the 68th among the \
+top earners of the league in a given period. \
+\newline
+To sum it up, this approach is very useful to identify the top earners of the league, and as we can see \
+if the player wins many awards he gets higher salary. Alexander Enmanuel is not among the top owners over time \
+But he got very high salaries in years when he did good and earned many titles. \ 
+To check if the high earners get more awards let's divide their salaries by 1,000,000 and check the correlation \
+between the number of trophies and salary
+
 ```{r, echo=F}
 
+get_players_salary <- function(source = salaries, ids){
+  return((salaries %>%
+  filter(playerID %in% ids) %>%
+  summarise(mean = mean(salary)))$mean )
+}
+
+
+salaries$salary <- salaries$salary / 1000000
+awards_by_players <- awards_by_players %>%
+  mutate(meanSalary = sapply(playerID, get_players_salary, source = salaries)) %>%
+  mutate_at("meanSalary", as.numeric)
+
+
+cor.test(awards_by_players$meanSalary, awards_by_players$award_count)
+```
+As we can see the number of throphies of the player and his salary in millions are correlated to each other \
+with a value of 0.59 \
+Now let's try to build a very simple model which will estimate the number of player's trophies based on his salary \
+
+```{r, echo = F}
+aw_by_sal <- lm( award_count ~ 0 + meanSalary, data = awards_by_players)
+summary(aw_by_sal)
+coefficients(aw_by_sal)
+```
+According to this model, a player should earn at least around 1.6m for one award. \
+I believe that, the positive correlation between these two variables is present, as when the players \
+get more awards they get recognized by the public, and become more attractive for the teams, \
+so they offer them good contracts
+
+
+#Batter's efficiency
+
+Let's start from Batters and see how many hits do they need for one home run and other types of hit. \
+In order to have relevant metrics let's exclude the batters with less then usual gaming practice \
+as they could have been just lucky for having a high accuracy \
+```{r, echo = F}
+#Only at this point I found out that all of the csv files were unnecessary 
+#as there is a package with all the data
+#HFHR = hits for one home run
+#HF2B = hits for one 2B safe
+#HF3B = hits for one triple
+home_run_scorers <- Batting %>%
+  filter(AB >= mean(AB), G >= mean(G)) %>%
+  group_by(playerID) %>%
+  summarise(meanHR = mean(HR), meanH = mean(H), 
+            mean2B = mean(X2B), mean3B = mean(X3B),
+            meanAB = mean(AB), meanR = mean(R)) %>%
+  filter(meanHR != 0, meanH != 0, mean2B != 0, mean3B != 0) %>%
+  mutate(meanHFHR = meanH / meanHR,
+         meanHF2B = meanH / mean2B,
+         meanHF3B = meanH / mean3B,
+         realName = sapply(playerID, get_real_names, source = players_data)) %>%
+  arrange(meanHFHR) %>%
+  select(playerID, realName, meanHFHR, meanHF2B, meanHF3B, meanAB, meanR)
+
+print.data.frame(home_run_scorers[1:15,-c(1)])
 ```
 
-This will ensure that the R code will not appear in your final pdf report. The pdf report should be 3-4 pages without R code.
+As we can see the best player in this metric is Mark David who needed around 2 hits for a home run \
+Only the top 5 players in this metric were able to get a home run with less than 3 hits in general(mean taken) \
+Using this approach we can find the best candidates for early batting. \
+I believe that the players who need the least ammount of hits for a home run, single, double or triple should be \
+ordered in the first places of batters as they have high speed and lots of energy at the beginning of the game \
+This type of metrics can be useful to identify the efficiency of the players who usually swing but I don't \
+see any usage of this approach for players who sometimes prefer to not swing \
 
-Submit to me.
-pdf report
-r markdown
-data used
+\newline
+
+
+Now let's check whether the mean of these metrics is associated with the number of occurances of the player \
+at the bat \newline
+
+
+```{r, echo=F}
+atb_by_hit_acc <- lm( meanAB ~ 0 + meanHFHR + meanHF2B + meanHF3B , data = home_run_scorers)
+summary(atb_by_hit_acc)
+coefficients(atb_by_hit_acc)
+
+home_run_scorers <- home_run_scorers %>%
+  rowwise() %>%
+  mutate(meanACC = mean(meanHFHR + meanHF2B + meanHF3B) / 3)
+
+```
+As the model suggests the player's accuracy in making Home runs\newline 
+has the highest effect on the number of appearences at bat, meaning that if the player needs less amount of \
+hits for a home run he is more likely to be at bat.
+
+
+```{r, echo=F}
+cor.test(home_run_scorers$meanACC, home_run_scorers$meanAB)
+
+ggplot(home_run_scorers, aes(x = meanAB, y = meanACC)) + 
+  geom_point() + 
+  geom_smooth() + 
+  labs(y = "Acurracy of hitting(HITS for a BASE RUN)",
+       x = "Apperances at BAT")
+```
+Altough the variables are not highly correlated, we can see that in general most of the players earn their \
+place at batting for having a high accuracy of hit to run to base ratio(the lower the better)
+
+
+
+Now let's check the connection of hitting accuracy and runs scored by the player
+```{r, echo=F}
+runs_by_hits <- lm( meanR ~ 0 + ., data = home_run_scorers[,-c(1,2,6,8)] )
+summary(runs_by_hits)
+coefficients(runs_by_hits)
+runs_by_hits_v2 <- lm( meanR ~ 0 + meanACC, data = home_run_scorers)
+coefficients(runs_by_hits_v2)
+```
+As we can see the double runs make highest impact on the number of runs. \
+Also the mean of the hits accuracies has a very linear relationship with the number of runs \
+
+```{r, echo = F}
+cor.test(home_run_scorers$meanR, home_run_scorers$meanACC)
+```
+The correlation is very small \
+Almost the same scenatio as with the appearances at bat.
+
+
+Now let's find out the players who are to tag up, or beat by the deffence \
+We should filter the players with the lowest numbers of caught stealing, strikeouts and hits by the pitch \
+
+```{r, echo = F}
+hardest_to_beat <- Batting %>%
+  filter(G >= mean(G)) %>%
+  group_by(playerID) %>%
+  summarise(meanSO = mean(SO), meanHBP = mean(HBP),
+            meanCS = mean(CS), meanR = mean(R)) %>%
+  mutate(realName = sapply(playerID, get_real_names, source = players_data)) %>%
+  arrange(meanHBP)
+
+print.data.frame(hardest_to_beat[1:15,c(6,2,3,4,5)])
+
+
+runs_by_flex <- lm(meanR ~ 0 + . ,data = hardest_to_beat[,-c(1,6)])
+summary(runs_by_flex)
+coefficients(runs_by_flex)
+```
+
+According to the model the amount of strikeouts is more decisive rather than hits by the pitch or catches of stealing \
+
+
+Now let's check if the players who in general are more likely to not swing do better or not
+
+```{r, echo=F}
+walkers <- Batting %>%
+  filter(G >= mean(G)) %>%
+  group_by(playerID) %>%
+  summarise(meanIBB = mean(IBB),
+            meanR = mean(R)) %>%
+  mutate(realName = sapply(playerID, get_real_names, source = players_data)) %>%
+  arrange(desc(meanIBB))
+
+runs_by_walks <- lm(meanR ~ 0 + meanIBB, data = walkers)
+coefficients(runs_by_walks)
+summary(runs_by_walks)
+cor.test(walkers$meanR, walkers$meanIBB)
+
+ggplot(walkers, aes(x = meanR, y = meanIBB)) + 
+  geom_point() + 
+  geom_smooth() + 
+  labs(y = "Runs scored",
+       x = "Number of Intentional walks")
+```
+
+So, to conclude in general the relationship between the runs scored by players getting intentional walks is \newline higher than those who almost always try to hit
+
+
+#Pitcher's efficiency
+```{r, echo = F}
+Pitching <- Pitching %>%
+  filter(yearID >= "1999", G >= mean(G))
+```
+
+Let's first identify the ratio of the number of Batters hit by the pitch and the number of Batters faced
+```{r, echo = F}
+print.data.frame( (Pitching %>%
+                   group_by(playerID) %>%
+                   summarise(meanHBP = mean(HBP),
+                             meanBFP = mean(BFP)) %>%
+                   mutate(ratioHF = meanHBP / meanBFP,
+                          realName = sapply(playerID,get_real_names, source = players_data)) %>%
+                   arrange(desc(ratioHF)) %>%
+                     select(realName, ratioHF))[1:15,] )
+```
+
+As it is a very rare event the ratios are small \newline
+
+Now let's take a look at more obvious parameters
+
+```{r, echo=F}
+pitchers_r <- Pitching %>%
+  group_by(playerID) %>%
+  summarise(meanRA = mean(R),
+            meanSO = mean(SO),
+            meanBAO = mean(BAOpp)) %>%
+  mutate(realName = sapply(playerID,get_real_names, source = players_data)) %>%
+  select(realName, everything()) %>%
+  arrange(meanRA)
+
+print.data.frame(pitchers_r[1:5,c(1,3,4,5)])
+```
+
+
+I belive that the players with high ammount of strikeouts will allow less runs \
+so let's check my statement
+```{r, echo=F}
+cor.test(pitchers_r$meanRA, pitchers_r$meanSO)
+ggplot(pitchers_r, aes(x = meanRA, y = meanSO)) + 
+  geom_point() + 
+  geom_smooth() + 
+  labs(x = "Runs Allowed",
+       y = "Outs Scored")
+```
+ 
+The correlation is very high, but this was obvious \
+Now let's find out the average number of outs made by the player's till the opponent can make a run \
+Before that let's also look at the relationship between the opponent's batting percentage and the number of \
+strikeouts made by the player
+
+```{r, echo=F}
+cor.test(pitchers_r$meanBAO, pitchers_r$meanSO)
+```
+There is a very small but negative correlation among the variables meaning that increase in one will lead \
+to decrease in the other
+
+```{r, echo=F}
+pitchers_r <- pitchers_r %>%
+  mutate(ratioRO = meanSO / meanRA ) %>%
+  arrange(desc(ratioRO))
+
+print.data.frame(pitchers_r[1:15, c(1,6)])
+```
+As sooner or later, the opposing team will score a run, I believe that the the player who manages to get \
+more outs during that period is more efficient in deffense \
+As a game of baseball is divided into 9 innings = 27 outs \
+The best player manages to get 7 outs for his tim before the opposing team will score \
+meaning that on average if he is playing his team will allow the first run no earlier than the \
+3rd inning \
+
+
+#Conclusion
+To cap it all, I know that there are more detailed and obvious approaches of baseball analysis as it \
+is very famous sport with a lot of available data. However I wanted to create my own metrics \
+which are not that obvious in usage and maybe are not that useful, but at least they are my personal approaches :) \
+I have only a limited knowledge in baseball, and connecting my findings with my knowledge I can see some parallels \
+with soccer, as in both sports the attacking players are more recognized and usually they get the awards for \
+the best player\
+Also my findings show that the players are more likely to score a run via intentional walks whihc usually \
+is realized through not swinging and having patience.
