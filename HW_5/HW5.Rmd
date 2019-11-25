@@ -1,0 +1,95 @@
+---
+title: "HW 5  - Network visualization"
+author: "Narek Sahakyan"
+date: "11/20/2019"
+output: pdf_document
+---
+Dear Mr. Madoyan, I have decided to 
+analyze the transfer market as a network.
+The data contains 4700 transfers from season 2000-2001
+upto 2018-2019. As the number of teams is huge, I have decided
+to filter out the deals between the teams from top 10 leagues.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+packages_list <- c("igraph","network","circlize","dplyr","GGally")
+
+install_or_call <- function(list = packages_list){
+  installed <- installed.packages()[,"Package"]
+  for( package in packages_list ){
+    if(!(package %in% installed)){
+      install.packages(package)
+    }
+    do.call(library, list(package))
+  }
+}
+install_or_call()
+transfers <- read.csv("transfers.csv",stringsAsFactors = F)
+```
+
+
+```{r, echo=F}
+top10 <- c("LaLiga", "Serie A", "1.Bundesliga", "Ligue 1", "Premier League",
+          "Liga NOS", "Premier Liga", "MLS", "Eredivisie", "Série A")
+
+
+by_lg <- transfers %>%
+  filter(League_from %in% top10 & League_to %in% top10) %>%
+  group_by(League_from, League_to) %>%
+  summarise(Count = n(), Mean_Fee = round(mean(Transfer_fee) / 1000000),
+            Mean_Age = round(mean(Age))) %>%
+  filter(Count >= 10) %>%
+  arrange(desc(Mean_Fee / Count))
+
+lg_igraph <- igraph::graph_from_edgelist(as.matrix(by_lg[,1:2]), directed = T)
+lg_igraph <- set_edge_attr(lg_igraph, "count", value = by_lg$Count)
+lg_igraph <- set_edge_attr(lg_igraph, "mean.price", value = by_lg$Mean_Fee)
+lg_igraph <- set_edge_attr(lg_igraph, "mean.age" , value = by_lg$Mean_Age)
+
+lg_net <- intergraph::asNetwork(lg_igraph)
+
+count <- lg_net %e% "count"
+count <- (count - min(count))/ (max(count) - min(count))
+
+# Visualizing with network
+# set.seed(1)
+# plot(lg_net, label = network.vertex.names(lg_net),edge.lwd = count * 30,
+#      mode = "circle", displaylabels = T, edge.arrow.mode = 3)
+
+l <- layout_in_circle(lg_igraph)
+
+count1 <- E(lg_igraph)$count
+count1 <- (count1 - min(count1))/ (max(count1) - min(count1))
+
+plot(lg_igraph, layout = l, edge.arrow.mode = 3, edge.width = count1 * 20,
+     edge.curved = T)
+
+```
+As we can see the top 5 leagues are stronlgy interconnected to each other,\
+as most of the transfers take place between the teams from the top 5 \
+We can also see loops, meaning that many transfers take place in the same league \
+It is visible that Premier League teams are the most attracting as the majority of the trasnfers \
+happen end up having a buyer club from the Premier League. The league also has high positions \
+in terms of inside the league transfers, alongside with Seria A. Seria A and Premier League have higher \
+number of inside league transfers in comparison with the other represenatives of the top 5(France, Spain, Germany)
+
+
+```{r, echo = F}
+as_m <- as.matrix(lg_net, matrix.type = "adjacency")
+
+chordDiagram(as_m)
+````
+
+Almost the same picture is expressed in this visualization, \b
+however we can clearly notice that the teams from the non top 5 leagues \
+such as Portugal(Liga Nos, Eredivise) mostly sell their players to top 5 leagues teams\
+rather than buying them. Most of the incoming transfers are from non popular leagues such \b
+as the Brazilian league. I know that there are two teams in Portugues league that are experts \
+in buying young Brazilian players and then selling them to top leagues. On the other side \
+Ajax, one of the most famous teams of in the world in terms of its own academy. \
+Following Ajax's principle most of the Eredivisie teams rise and sell their best players \
+However, we can see that the Russian League has relatively higher number of incoming transfers\b
+in comparison with the noted countries. In my opinion the high salaries in Russian teams attract \
+the players, or most of them are about to finish their career. As with the age, the abilities of the \
+players seem to get worse, they often switch to weaker teams to gain more gaming practice or just make money\
