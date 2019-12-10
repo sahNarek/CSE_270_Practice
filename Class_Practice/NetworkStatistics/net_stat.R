@@ -124,3 +124,33 @@ igraph::closeness(asIgraph(net), normalized = T)
 
 igraph::betweenness(net_i)
 sna::betweenness(net)
+
+
+set.seed(1)
+plot(Moreno_i, vertex.color = V(Moreno_i)$gender,
+     vertex.label = V(Moreno_i)$gender)
+
+
+actual <- assortativity(Moreno_i, V(Moreno_i)$gender)
+
+results <- vector(length = 1000)
+
+for(i in 1:1000) {
+  results[i] <- assortativity(Moreno_i,
+                              sample(V(Moreno_i)$gender))
+}
+
+ggplot() + geom_histogram(aes(x = results)) + 
+  geom_vline(xintercept = actual,
+             size = 1.2, color = "red")
+
+
+com <- fastgreedy.community(Moreno_i)
+sizes(com)
+membership(com)
+
+plot(com, Moreno_i)
+
+edge_b <- edge.betweenness.community(Moreno_i)
+sizes(edge_b)
+

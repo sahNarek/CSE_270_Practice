@@ -1,0 +1,359 @@
+---
+title: "Untitled"
+author: "Habet Madoyan"
+date: "11/27/2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(igraph)
+library(sna)
+library(network)
+library(dplyr)
+library(intergraph)
+```
+
+
+```{r}
+load("usa.rda")
+load("usa_i.rda")
+network::list.vertex.attributes(usa)
+network::list.edge.attributes(usa)
+```
+
+```{r, eval=F, echo=F}
+usa_i <- asIgraph(usa)
+V(usa_i)$name <- V(usa_i)$vertex.names
+usa_i <- delete_vertex_attr(usa_i, "vertex.names")
+save(usa_i, file="usa_i.rda")
+```
+
+\pagebreak
+
+```{r, fig.width=10, fig.height=12}
+plot(usa)
+```
+
+\pagebreak
+
+```{r}
+edge_density(usa_i)
+```
+
+```{r}
+mean_distance(usa_i, directed = T)
+```
+
+```{r}
+get_diameter(usa_i)
+```
+
+```{r}
+i_list <- list()
+  
+for(i in 1:1000){
+  i_list[[i]] <- erdos.renyi.game(n = gorder(usa_i),  p.or.m = edge_density(usa_i), 
+    type = "gnp")
+}
+avg_dist <- unlist(lapply(i_list, mean_distance, directed = T))
+```
+
+\pagebreak
+
+```{r}
+igraph::list.vertex.attributes(usa_i)
+table(V(usa_i)$type)
+```
+
+```{r}
+type_num <- as.numeric(as.factor(V(usa_i)$type))
+assortativity(usa_i, type_num)
+```
+
+
+\pagebreak
+```{r}
+assortativity.degree(usa_i, directed=T)
+```
+
+
+```{r}
+reciprocity(usa_i)
+```
+
+
+\pagebreak
+
+
+```{r}
+ggplot()+geom_histogram(aes(x=avg_dist))+
+  geom_vline(xintercept = mean_distance(usa_i, directed=T),  size=1.2, color="red")
+```
+
+
+\pagebreak
+```{r}
+ego(usa_i,1, "JFK", mode=c("out"))
+```
+
+```{r}
+ego(usa_i,2, "JFK", mode=c("out"))
+```
+
+
+```{r}
+ego_size(usa_i,2, "JFK", mode=c("out"))
+```
+
+
+\pagebreak
+```{r}
+neighbors(usa_i, "JFK", mode="in")
+```
+
+\pagebreak
+```{r}
+d_out <- igraph::degree(usa_i, mode = "out", normalized = T)
+which.max(d_out)
+d_out[41]
+```
+
+```{r}
+d_out <- igraph::degree(usa_i, mode = "out")
+which.max(d_out)
+d_out[41]
+```
+
+\pagebreak
+
+```{r, fig.width=10, fig.height=8}
+ggplot()+geom_histogram(aes(x=d_out))+
+  labs(x="Outgoing Flights", 
+       title="Histogram of outgoing flights")
+```
+
+```{r}
+d_in <- igraph::degree(usa_i, mode = "in", normalized = T)
+which.max(d_in)
+d_in[41]
+```
+
+\pagebreak
+
+```{r, fig.width=10, fig.height=8}
+ggplot()+geom_histogram(aes(x=d_in))
+```
+
+
+\pagebreak
+```{r, fig.width=10, fig.height=8}
+f_in <- strength(usa_i, mode = "in")
+which.max(f_in)
+f_in[41]
+```
+
+\pagebreak
+
+```{r, fig.width=10, fig.height=8}
+ggplot()+geom_histogram(aes(x=f_in))+
+  labs(x="Flights", title="Distribution of incoming flights")
+```
+
+
+```{r, eval=F, echo=F}
+close <- igraph::closeness(usa_i, normalized = T, mode="out")
+df_c <- data.frame(close, names(close))
+df_c <- df_c[order(df_c$close),]
+rownames(df_c) <- NULL
+order(close)
+close[which.max(close)]
+```
+
+\pagebreak
+
+```{r}
+close <- igraph::closeness(usa_i,weights = 1/E(usa_i)$weight,
+                           normalize=T, mode="all")
+df_c <- data.frame(airports=names(close),closeness=close)
+df_c <- df_c[order(df_c$closeness, decreasing=T),]
+head(df_c)
+```
+
+\pagebreak
+
+```{r}
+bet <- igraph::betweenness(usa_i, weights = 1/E(usa_i)$weight,
+                           normalize=T)
+sort(bet, decreasing = T)[1:5]
+```
+
+\pagebreak
+
+```{r}
+p_rank <- page_rank(usa_i)$vector
+sort(p_rank, decreasing = T)[1:10]
+```
+
+\pagebreak
+
+```{r}
+usa_i1 <- as.undirected(usa_i, mode = "collapse")
+com <- fastgreedy.community(usa_i1) 
+sizes(com)
+```
+
+\pagebreak
+
+```{r, fig.width=11, fig.height=10}
+plot(com, usa_i1)
+```
+
+```{r}
+s <- coreness(usa_i, mode="all")
+s
+```
+
+nba passing
+
+
+```{r}
+load("n_pass.rda")
+i_pass <- asIgraph(n_pass)
+igraph::list.edge.attributes(i_pass)
+igraph::list.vertex.attributes(i_pass)
+```
+
+```{r}
+i_pass <- igraph::set.edge.attribute(i_pass, "weight", value = E(i_pass)$passes)
+i_pass <- igraph::set.vertex.attribute(i_pass, "name", value=V(i_pass)$vertex.names)
+```
+
+
+```{r}
+edge_density(i_pass)
+```
+
+```{r}
+mean_distance(i_pass, directed=T)
+```
+
+\pagebreak
+```{r}
+pos_num <- as.numeric(as.factor(V(i_pass)$position))
+assortativity(i_pass, pos_num)
+```
+
+
+```{r}
+actual <- assortativity(i_pass, pos_num)
+
+results <- vector(length=1000)
+for(i in 1:1000){
+  results[i] <- assortativity(i_pass,sample(pos_num))
+}
+```
+
+\pagebreak
+
+```{r}
+ggplot()+geom_histogram(aes(x=results))+
+  geom_vline(xintercept = actual,
+            size=1.2, color="red")
+```
+
+
+Degree assortativity
+
+```{r}
+assortativity.degree(i_pass)
+```
+
+\pagebreak
+```{r}
+reciprocity(i_pass)
+```
+
+\pagebreak
+
+# Passes recieved
+
+```{r}
+recieved <- strength(i_pass, mode="in")
+recieved
+```
+
+\pagebreak
+
+```{r}
+gave <- strength(i_pass, mode="out")
+gave
+```
+
+\pagebreak
+
+```{r}
+df_p <- data.frame(gave, recieved, players=names(recieved))
+ggplot(df_p, aes(recieved, gave, label=players))+
+  geom_point()+geom_label()+  ggtitle("Given and recieved passes")
+```
+
+\pagebreak
+```{r}
+igraph::degree(i_pass)
+```
+
+\pagebreak
+
+```{r}
+pass_close <- igraph::closeness(i_pass, weights = 1/E(i_pass)$weight,
+                normalized = T, mode="all")
+sort(pass_close, decreasing = T)
+```
+
+\pagebreak
+
+```{r}
+pass_bet <- igraph::betweenness(i_pass, weights = 1/E(i_pass)$weight,
+                normalized = T)
+sort(pass_bet, decreasing=T)
+```
+
+\pagebreak
+```{r}
+p_rank <- page_rank(i_pass)$vector
+sort(p_rank, decreasing = T)
+```
+
+\pagebreak
+
+```{r}
+transitivity(i_pass)
+```
+
+
+
+
+\pagebreak
+
+```{r, fig.width=11, fig.height=9}
+plot(n_pass, vertex.cex=10*pass_bet, displaylabels=T)
+```
+
+\pagebreak
+
+```{r, fig.width=11, fig.height=9}
+x <- (pass_close-mean(pass_close))/sd(pass_close)
+plot(n_pass, vertex.cex=x, displaylabels=T)
+```
+
+\pagebreak
+
+```{r, fig.width=11, fig.height=9}
+
+plot(n_pass, vertex.cex=10*p_rank, displaylabels=T)
+```
+

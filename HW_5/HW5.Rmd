@@ -30,6 +30,32 @@ transfers <- read.csv("transfers.csv",stringsAsFactors = F)
 
 
 ```{r, echo=F}
+plot_igraph <- function(igraph, variable){
+  var <- (variable - min(variable))/ (max(variable) - min(variable))
+  var[which(var == 0, arr.ind = T)] <- 0.0000001
+  l <- layout_in_circle(igraph)
+  return(plot(igraph, layout = l, edge.arrow.mode = 3, edge.width = var * 20,
+     edge.curved = T))
+}
+
+igraph_net <- function(data){
+  igraph <- igraph::graph_from_edgelist(as.matrix(data[,1:2]), directed = T)
+  igraph <- set_edge_attr(igraph, "count", value = data$Count)
+  igraph <- set_edge_attr(igraph, "mean.price", value = data$Mean_Fee)
+  igraph <- set_edge_attr(igraph, "mean.age" , value = data$Mean_Age)
+  
+  net <- intergraph::asNetwork(igraph)
+  return(list(plot = plot, igraph = igraph,
+              net = net))
+}
+
+plot_diagram <- function(net){
+  as_m <- as.matrix(net, matrix.type = "adjacency")
+  return(chordDiagram(as_m))
+}
+
+
+
 top10 <- c("LaLiga", "Serie A", "1.Bundesliga", "Ligue 1", "Premier League",
           "Liga NOS", "Premier Liga", "MLS", "Eredivisie", "Série A")
 
@@ -42,29 +68,8 @@ by_lg <- transfers %>%
   filter(Count >= 10) %>%
   arrange(desc(Mean_Fee / Count))
 
-lg_igraph <- igraph::graph_from_edgelist(as.matrix(by_lg[,1:2]), directed = T)
-lg_igraph <- set_edge_attr(lg_igraph, "count", value = by_lg$Count)
-lg_igraph <- set_edge_attr(lg_igraph, "mean.price", value = by_lg$Mean_Fee)
-lg_igraph <- set_edge_attr(lg_igraph, "mean.age" , value = by_lg$Mean_Age)
-
-lg_net <- intergraph::asNetwork(lg_igraph)
-
-count <- lg_net %e% "count"
-count <- (count - min(count))/ (max(count) - min(count))
-
-# Visualizing with network
-# set.seed(1)
-# plot(lg_net, label = network.vertex.names(lg_net),edge.lwd = count * 30,
-#      mode = "circle", displaylabels = T, edge.arrow.mode = 3)
-
-l <- layout_in_circle(lg_igraph)
-
-count1 <- E(lg_igraph)$count
-count1 <- (count1 - min(count1))/ (max(count1) - min(count1))
-
-plot(lg_igraph, layout = l, edge.arrow.mode = 3, edge.width = count1 * 20,
-     edge.curved = T)
-
+lg_igraph <- igraph_net(data = by_lg)$igraph
+plot_igraph(igraph = lg_igraph, variable = E(lg_igraph)$"count")
 ```
 As we can see the top 5 leagues are stronlgy interconnected to each other,\
 as most of the transfers take place between the teams from the top 5 \
@@ -76,10 +81,8 @@ number of inside league transfers in comparison with the other represenatives of
 
 
 ```{r, echo = F}
-as_m <- as.matrix(lg_net, matrix.type = "adjacency")
-
-chordDiagram(as_m)
-````
+plot_diagram(net = igraph_net(data = by_lg)$net)
+```
 
 Almost the same picture is expressed in this visualization, \b
 however we can clearly notice that the teams from the non top 5 leagues \
@@ -89,7 +92,76 @@ as the Brazilian league. I know that there are two teams in Portugues league tha
 in buying young Brazilian players and then selling them to top leagues. On the other side \
 Ajax, one of the most famous teams of in the world in terms of its own academy. \
 Following Ajax's principle most of the Eredivisie teams rise and sell their best players \
-However, we can see that the Russian League has relatively higher number of incoming transfers\b
+However, we can see that the Russian League has relatively higher number of incom
+ing transfers\b
 in comparison with the noted countries. In my opinion the high salaries in Russian teams attract \
 the players, or most of them are about to finish their career. As with the age, the abilities of the \
 players seem to get worse, they often switch to weaker teams to gain more gaming practice or just make money\
+
+```{r, echo = F}
+youngs <- subgraph.edges(lg_igraph, eids = which(E(lg_igraph)$mean.age <= 24))
+
+plot_igraph(igraph = youngs, variable = E(youngs)$"count")
+```
+
+```{r, echo = F}
+youngs_net <- intergraph::asNetwork(youngs)
+as_m1 <- as.matrix(youngs_net, matrix.type = "adjacency")
+chordDiagram(as_m1)
+```
+As expected the young players mostly tend to play in the top 5 leagues. \b
+We can see that the young players from the leagues in the lower part of the top 10(Russian, Netherlands) \b
+Join top teams from the top 5, We can clearly see that the Brazilian, Portuguese and Netherlands leagues \b
+are experts in selling young players, as they distribute players to almost every league. However we can see \b
+that some young players from top leagues join weaker leagues, sometimes this can be explained by loans to gain \b
+gaming practice as usually the number of incoming and outcoming between a top 5 and
+non-top 5 league is almost the same \b
+Now let's take the domestic transfers in Bundesliga and analyze the picture there.
+```{r, echo = F, fig.width=20, fig.height= 20}
+bundes_transfers <- transfers %>%
+  filter(League_from == "1.Bundesliga", League_to == "1.Bundesliga") %>%
+  group_by(Team_from, Team_to) %>%
+  summarise(Count = n(), Mean_Age = round(mean(Age)),
+            Mean_Fee = mean(Transfer_fee)/1000000)
+
+bund_igraph <- igraph_net(data = bundes_transfers)$igraph
+plot_igraph(bund_igraph, variable = E(bund_igraph)$"count")
+```
+As we can see there are a few clubs, that are strongly interconnected to each other and many transfers take \b
+place among them. As in Germany, the most popular football clubs are Bayern Munich and Borussia Dortmund, \b
+almost all the players tend to play for one of them, but more often for Bayern Munich \b 
+It is interesting that Bayern Munich and Borussia Dortmund have strong connections with each other, altough \b
+they are famous enemies. Almost all of the teams can be connected to Bayern Munich via common transfers
+```{r, echo = F, fig.width=20, fig.height= 20}
+plot_diagram(net = igraph_net(data = bundes_transfers)$net)
+```
+As expected, Bayern Munich and Borussia Dortmund more often buy rather than sell their players, \b
+whereas the other teams are used to sell more rather than buy. \b
+Now let's take a look at EPL domestic market.
+
+```{r, echo=F, fig.width=20, fig.height= 20}
+epl_transfers <- transfers %>%
+  filter(League_from == "Premier League", League_to == "Premier League") %>%
+  group_by(Team_from, Team_to) %>%
+  summarise(Count = n(), Mean_Age = round(mean(Age)),
+            Mean_Fee = mean(Transfer_fee)/1000000)
+
+epl_igraph <- igraph_net(data = epl_transfers)$igraph
+plot_igraph(epl_igraph, variable = E(epl_igraph)$"count")
+```
+We can see that in EPL, there are more dominating teams in the market, as most of the teams are connected \b
+to each other. It is visible that teams from the lower parts of the table usually do not make transfers \b
+among themselves, and most of the players leave these kind of teams(like Wigan,Bornmouth,Stoke City ...) \b
+to join teams from the higher standings. Now lets look at the mean transfer prices among EPL team's transfers.
+```{r, echo=F, fig.width=20, fig.height=20}
+plot_igraph(epl_igraph, variable = E(epl_igraph)$"mean.price")
+```
+As expected, the teams from the higher part of the standings, spend more on transfers rather than the ones \b
+from lower part of the table. It is interesting that teams like West Ham and Everton which usually take \b
+some places from 6th - 12th approximately, are among the top spenders of the league's domestic market. 
+```{r, echo=F,fig.width=20, fig.height=20}
+plot_diagram(igraph_net(data = epl_transfers)$net)
+```
+The diagram shows, that most of the time players leave top-clubs(non top-clubs) to join non top-clubs(top-clubs) \b
+In order to gain gaming practice, which they do not get in top clubs due to their age or lost of skill(or to play \b
+for a better club where they can win more trophies, mostly young and promising players) and we can see rare amount transfers \b between two clubs that have the same class. For example transfer from Liverpool to Man City \b or transfer from Wigan to West Bromich

@@ -1,0 +1,229 @@
+---
+title: "Homework 6"
+author: "Narek Sahakyan"
+date: "December 8, 2019"
+output: pdf_document
+---
+## Network Statistics
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+packages_list <- c("igraph","network","circlize","dplyr","GGally")
+
+install_or_call <- function(list = packages_list){
+  installed <- installed.packages()[,"Package"]
+  for( package in packages_list ){
+    if(!(package %in% installed)){
+      install.packages(package)
+    }
+    do.call(library, list(package))
+  }
+}
+install_or_call()
+transfers <- read.csv("transfers.csv",stringsAsFactors = F)
+```
+
+Let's summarise all of the transfers based on the incoming and outcoming leagues' of the teams. \b
+I will take the mean for all the numeric parameters of the transfers among all the teams from the leagues, \b
+and will take the most occuring position of the player as a summarising value for position attribute. \b
+Note that the fee of the transfers is expressed in terms of millions.
+```{r, functions}
+plot_igraph <- function(igraph, variable){
+  var <- (variable - min(variable))/ (max(variable) - min(variable))
+  var[which(var == 0, arr.ind = T)] <- 0.0000001
+  l <- layout_in_circle(igraph)
+  return(plot(igraph, layout = l, edge.arrow.mode = 3, edge.width = var * 20,
+     edge.curved = T))
+}
+
+igraph_net <- function(data){
+  igraph <- igraph::graph_from_edgelist(as.matrix(data[,1:2]), directed = T)
+  igraph <- set_edge_attr(igraph, "count", value = data$Count)
+  igraph <- set_edge_attr(igraph, "mean.price", value = data$Mean_Fee)
+  igraph <- set_edge_attr(igraph, "mean.age" , value = data$Mean_Age)
+  igraph <- set_edge_attr(igraph, "position", value = data$Position)
+  
+  net <- intergraph::asNetwork(igraph)
+  return(list(plot = plot, igraph = igraph,
+              net = net))
+}
+
+plot_diagram <- function(net){
+  as_m <- as.matrix(net, matrix.type = "adjacency")
+  return(chordDiagram(as_m))
+}
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+all_leagues <- transfers %>%
+  group_by(League_from, League_to) %>%
+  summarise(Count = n(), Mean_Fee = round(mean(Transfer_fee) / 1000000),
+            Mean_Age = round(mean(Age)), Position = getmode(Position))
+knitr::kable((all_leagues %>%
+                filter(League_from != League_to) %>%
+               arrange(desc(Count)))[1:5,])
+```
+
+#Network Density
+```{r}
+lg_igraph <- igraph_net(data = all_leagues)$igraph
+lg_net <- igraph_net(data = all_leagues)$net
+density <- igraph::edge_density(lg_igraph, loops = F)
+density
+```
+As we can see the density of the network is very low, as we included all of the leagues from our data. \b
+Some of the transfers are very rare, and there are many leagues that had only a few or even one transfers \b
+with one of the leagues, and had no other transfers from our into. To see if this is the reason for low density \b
+let's filter out the network and include the leagues that had at least 5 transfers among themsleves.
+```{r}
+no_rares <- subgraph.edges(lg_igraph, eids = which(E(lg_igraph)$count >= 5))
+igraph::edge_density(no_rares)
+```
+We can see significant improvement after this filtering. But in general it is again a low density. \b
+Nevertheless, we have about 150 leagues and usually only 20-25 of them make most of the transfers \b
+among themselves, so leagues other than that 20-25 make rare deals with famous leagues.
+
+#Reciprocity
+
+Following the same pattern let's first calculate this metric for the summarised version of all leagues \b
+and then filter out the ones with more than 5 transfers
+
+```{r}
+reciprocity(lg_igraph)
+```
+
+In my opinion it is not a bad value taking into account that there are 665 unique League From League To \b
+compositions, and this is not the filtered one so there are many "one time" transfers among Leagues. \b
+So in general terms, We can assume that in around 33 percent of the trasnfers, from one League to another one \b
+it is expected that there will also be a transferm in opposite direction. Now let's remove "rare" leagues.
+
+```{r}
+reciprocity(no_rares)
+```
+Now the reciprocity is almost half of the highest possible number.
+
+
+#Relationships in Networks
+
+Let's take the most obvious league for analyzing it's incoming and outcoming transfers.(England' Premier League)
+
+```{r}
+out_epl <- incident(no_rares, "Premier League", mode = c("out"))
+out_epl
+```
+There are 13 leagues that had more than 5 transfers of players from English Premier League.
+
+```{r}
+in_epl <- incident(no_rares, "Premier League", mode = c("in"))
+in_epl
+```
+And there are 26 leagues that had 5 or more transfers, in which the player left the leagues for EPL. \b
+I believe that this kind of measures can be used to identify the most desirable leagues to play for players. \b
+To see the opposite picture let's pick a not famous league. Let's pick the Turkish League
+
+```{r}
+out_turk <- incident(no_rares, "Süper Lig", mode = c("out"))
+out_turk
+```
+
+```{r}
+in_turk <- incident(no_rares, "Süper Lig", mode = c("in"))
+in_turk
+```
+
+Turkey was not a good choice for showing "unpopularity", as some famous but old players often move to Turkish \b
+teams for gaining CL practice. Nevertheless, we can see that the difference is only 3 leagues whereas for England \b
+the difference was almost double. \b
+Let's pick Brazilian league. The league is famous for rising stars from academies and selling them tou european \b
+teams.
+
+```{r}
+out_braz <- incident(no_rares, "Série A", mode = c("out"))
+out_braz
+```
+
+```{r}
+in_braz <- incident(no_rares, "Série A", mode = c("in"))
+in_braz
+```
+
+A hit ! \b
+There are 10 leagues that bought more than 5 players from Brazilian leagues, whereas there are only 5 leagues \b
+from which the Brazilian league teams bought more than 5 players
+
+#Degree Centrality
+```{r}
+sort(igraph::degree(no_rares), decreasing = T)
+```
+
+Using this method we can find the most "active" players of the market. England England England everywhere.
+
+#Closeness
+```{r}
+sort(igraph::closeness(no_rares, mode = "all", normalized = T), decreasing = T)
+```
+
+Nothing new about first place. We can see that in top 10 leagues England and Italy have high centrality \b
+whereas the other ones have more or less the same value. 
+
+Now let's consider the amount of transfers among the leagues as a "weight" for their edge. In our case the \b
+"weight" is not considered a cost, so we don't need to take it's inverse, when calculating the according \b
+metrics.
+
+```{r}
+sort(igraph::closeness(no_rares, mode = "all", 
+                       weights = E(no_rares)$count, normalized = T), decreasing = T)
+```
+
+Taking the amount of the transfers as a "weight" changes the picture a little bit, and some not famous leagues \b
+have relatively higher values than in the previous calculation without "weight".
+#Betweenness
+```{r}
+sort(igraph::betweenness(no_rares,weights = E(no_rares)$count, normalized = T), decreasing = T)
+```
+In terms of betweeness the picture is almost the same as in closeness metrics. However we can see that \b
+there are some leauges having a value of 0. Nevertheless betweenness \b
+is not a decriptive statistics for this network as for example if there are two edges(transfers in our case) \b
+A -> B, B -> C, it is not always true that A and C have a special transfer connections, as our network's weight \b
+cannot be interpreted as the "cost" of making a transfer from one node to another.
+
+
+#Assortiavity Degree
+```{r}
+assortativity.degree(no_rares, directed = T)
+```
+The low value here is logical, as the players from non popular leagues' teams are not likely to join a \b
+team from the popular leagues, and most of the time the same applies to the popular leagues' teams players.
+
+#Page rank
+```{r}
+sort(page_rank(no_rares)$vector, decreasing = T)
+```
+
+Again a straight connection, the more popular the league the stronger links of transfers to it
+
+```{r}
+turk_direct <- ego(no_rares, 1, "Süper Lig", mode=c("out"))[[1]]
+turk_direct
+```
+
+```{r}
+braz_direct <- ego(no_rares, 1, "Série A", mode=c("out"))[[1]]
+braz_direct
+```
+As we can see Turkish and Brazilian leagues sell players mainly to top leagues.
+
+#Community Detection
+```{r, fig.height=20, fig.width=20}
+undirected <- as.undirected(no_rares, mode = c("collapse"))
+com <- fastgreedy.community(undirected)
+sizes(com)
+set.seed(1)
+plot(com, no_rares)
+```
+As we can see most of the communities are built based on the continents and geographic locations of the \b
+league's countries. Also the second divisions of the leagues are most of the time in the same community. \b
+Clear example is Premier League's community. The community includes the leagues from Britain countries \b
+, leagues from second divisions and geographicaly close countries.
